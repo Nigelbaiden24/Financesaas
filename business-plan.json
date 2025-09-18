@@ -1,0 +1,42 @@
+{
+  "id": "backend-business-plan-001",
+  "name": "Comprehensive Business Plan",
+  "category": "business-plan",
+  "sector": "business",
+  "templateData": {
+    "sections": [
+      {
+        "type": "executive_summary",
+        "title": "Executive Summary",
+        "content": "{{executive_summary}}"
+      },
+      {
+        "type": "company_description",
+        "title": "Company Description",
+        "content": "{{company_description}}"
+      },
+      {
+        "type": "market_analysis",
+        "title": "Market Analysis",
+        "content": "{{market_analysis}}"
+      },
+      {
+        "type": "marketing_strategy",
+        "title": "Marketing & Sales Strategy",
+        "content": "{{marketing_strategy}}"
+      },
+      {
+        "type": "financial_projections",
+        "title": "Financial Projections",
+        "content": "{{financial_projections}}"
+      }
+    ]
+  },
+  "aiPromptTemplate": "Create a comprehensive business plan based on the user prompt: {{user_prompt}}. Include executive summary, company description, market analysis, marketing strategy, and financial projections. Make it investor-ready and professionally structured.",
+  "metadata": {
+    "version": "1.0",
+    "author": "Jenrate.Ai",
+    "created": "2025-08-08",
+    "estimatedPages": 8
+  }
+}

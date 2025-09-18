@@ -1,0 +1,37 @@
+{
+  "id": "backend-report-001",
+  "name": "Financial Report",
+  "category": "report-generator",
+  "sector": "finance",
+  "templateData": {
+    "sections": [
+      {
+        "type": "executive_summary",
+        "title": "Executive Summary",
+        "content": "{{executive_summary}}"
+      },
+      {
+        "type": "financial_highlights",
+        "title": "Financial Highlights",
+        "content": "{{financial_highlights}}"
+      },
+      {
+        "type": "performance_analysis",
+        "title": "Performance Analysis",
+        "content": "{{performance_analysis}}"
+      },
+      {
+        "type": "recommendations",
+        "title": "Recommendations",
+        "content": "{{recommendations}}"
+      }
+    ]
+  },
+  "aiPromptTemplate": "Create a professional financial report for {{company_name}} based on the user prompt: {{user_prompt}}. Include executive summary, financial highlights, performance analysis, and strategic recommendations. Make it comprehensive and data-driven.",
+  "metadata": {
+    "version": "1.0",
+    "author": "Jenrate.Ai",
+    "created": "2025-08-08",
+    "estimatedPages": 4
+  }
+}

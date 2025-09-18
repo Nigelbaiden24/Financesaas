@@ -1,0 +1,51 @@
+{
+  "id": "backend-brochure-001",
+  "name": "Marketing Brochure",
+  "category": "brochure",
+  "sector": "marketing",
+  "description": "Professional tri-fold marketing brochure template",
+  "templateData": {
+    "sections": [
+      {
+        "type": "cover",
+        "title": "{{company_name}}",
+        "subtitle": "{{company_tagline}}",
+        "logo": "{{logo_url}}"
+      },
+      {
+        "type": "services",
+        "title": "Our Services",
+        "items": [
+          {
+            "name": "{{service_1}}",
+            "description": "{{service_1_desc}}"
+          },
+          {
+            "name": "{{service_2}}",
+            "description": "{{service_2_desc}}"
+          }
+        ]
+      },
+      {
+        "type": "about",
+        "title": "About Us",
+        "content": "{{company_description}}"
+      },
+      {
+        "type": "contact",
+        "title": "Contact Information",
+        "details": {
+          "address": "{{address}}",
+          "phone": "{{phone}}",
+          "email": "{{email}}",
+          "website": "{{website}}"
+        }
+      }
+    ]
+  },
+  "aiPromptTemplate": "Create a professional marketing brochure for {{company_name}}. Extract company information, services, and contact details from the prompt to create compelling marketing copy.",
+  "tags": ["brochure", "marketing", "promotional", "business"],
+  "previewImageUrl": "https://images.unsplash.com/photo-1586953208448-b95a79798f07?ixlib=rb-4.0.3&w=300&h=200&fit=crop",
+  "usageCount": 0,
+  "isActive": true
+}

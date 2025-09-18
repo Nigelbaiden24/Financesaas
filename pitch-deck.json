@@ -1,0 +1,48 @@
+{
+  "id": "backend-pitch-001",
+  "name": "Startup Pitch Deck",
+  "category": "pitch-deck",
+  "sector": "technology",
+  "description": "Professional startup pitch deck template for funding presentations",
+  "templateData": {
+    "slides": [
+      {
+        "type": "title",
+        "title": "{{company_name}}",
+        "subtitle": "{{tagline}}",
+        "presenter": "{{founder_name}}"
+      },
+      {
+        "type": "problem",
+        "title": "The Problem",
+        "content": "{{problem_statement}}"
+      },
+      {
+        "type": "solution",
+        "title": "Our Solution",
+        "content": "{{solution_description}}"
+      },
+      {
+        "type": "market",
+        "title": "Market Opportunity",
+        "content": "{{market_size}}",
+        "metrics": ["{{metric_1}}", "{{metric_2}}"]
+      },
+      {
+        "type": "business_model",
+        "title": "Business Model",
+        "content": "{{revenue_model}}"
+      },
+      {
+        "type": "financials",
+        "title": "Financial Projections",
+        "content": "{{financial_highlights}}"
+      }
+    ]
+  },
+  "aiPromptTemplate": "Create a compelling pitch deck for {{company_name}} in the {{industry}} sector. Extract key business details from the prompt and structure them into slides that tell a compelling story for investors.",
+  "tags": ["pitch", "deck", "presentation", "startup", "funding"],
+  "previewImageUrl": "https://images.unsplash.com/photo-1559136555-9303baea8ebd?ixlib=rb-4.0.3&w=300&h=200&fit=crop",
+  "usageCount": 0,
+  "isActive": true
+}

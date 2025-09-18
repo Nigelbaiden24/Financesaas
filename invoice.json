@@ -1,0 +1,45 @@
+{
+  "id": "backend-invoice-001",
+  "name": "Professional Invoice",
+  "category": "invoice-creator",
+  "sector": "business",
+  "templateData": {
+    "sections": [
+      {
+        "type": "header",
+        "fields": {
+          "companyName": "{{company_name}}",
+          "companyAddress": "{{company_address}}",
+          "invoiceNumber": "{{invoice_number}}",
+          "date": "{{invoice_date}}"
+        }
+      },
+      {
+        "type": "client_info",
+        "fields": {
+          "clientName": "{{client_name}}",
+          "clientAddress": "{{client_address}}"
+        }
+      },
+      {
+        "type": "line_items",
+        "items": "{{line_items}}"
+      },
+      {
+        "type": "totals",
+        "fields": {
+          "subtotal": "{{subtotal}}",
+          "tax": "{{tax}}",
+          "total": "{{total}}"
+        }
+      }
+    ]
+  },
+  "aiPromptTemplate": "Create a professional invoice based on the user prompt: {{user_prompt}}. Extract company details, client information, services/products, quantities, rates, and calculate totals. Make it business-ready and properly formatted.",
+  "metadata": {
+    "version": "1.0",
+    "author": "Jenrate.Ai",
+    "created": "2025-08-08",
+    "estimatedPages": 1
+  }
+}

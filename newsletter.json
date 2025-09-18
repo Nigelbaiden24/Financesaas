@@ -1,0 +1,44 @@
+{
+  "id": "backend-newsletter-001",
+  "name": "Professional Newsletter",
+  "category": "newsletter-designer",
+  "sector": "marketing",
+  "templateData": {
+    "sections": [
+      {
+        "type": "header",
+        "fields": {
+          "title": "{{newsletter_title}}",
+          "subtitle": "{{newsletter_subtitle}}",
+          "date": "{{newsletter_date}}"
+        }
+      },
+      {
+        "type": "featured_article",
+        "title": "Featured Article",
+        "content": "{{featured_article}}"
+      },
+      {
+        "type": "news_updates",
+        "title": "Latest Updates",
+        "content": "{{news_updates}}"
+      },
+      {
+        "type": "upcoming_events",
+        "title": "Upcoming Events",
+        "content": "{{upcoming_events}}"
+      },
+      {
+        "type": "footer",
+        "content": "{{footer_content}}"
+      }
+    ]
+  },
+  "aiPromptTemplate": "Create a professional newsletter based on the user prompt: {{user_prompt}}. Include featured articles, news updates, upcoming events, and engaging content. Make it visually appealing and informative.",
+  "metadata": {
+    "version": "1.0",
+    "author": "Jenrate.Ai",
+    "created": "2025-08-08",
+    "estimatedPages": 2
+  }
+}

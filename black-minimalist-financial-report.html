@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{reportTitle}} - {{companyName}}</title>
+    <style>
+        /* Black Minimalist Financial Report Styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #ffffff;
+            color: #000000;
+            line-height: 1.6;
+        }
+        
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 0 auto;
+            background: #ffffff;
+            position: relative;
+            padding: 40px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        
+        .header {
+            text-align: left;
+            border-bottom: 3px solid #000000;
+            padding-bottom: 20px;
+            margin-bottom: 40px;
+        }
+        
+        .company-name {
+            font-size: 48px;
+            font-weight: bold;
+            color: #000000;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+        }
+        
+        .report-title {
+            font-size: 24px;
+            font-weight: 300;
+            color: #666666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+        }
+        
+        .report-year {
+            font-size: 36px;
+            font-weight: bold;
+            color: #000000;
+            position: absolute;
+            top: 40px;
+            right: 40px;
+        }
+        
+        .section {
+            margin-bottom: 40px;
+        }
+        
+        .section-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #000000;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #cccccc;
+        }
+        
+        .section-content {
+            font-size: 12px;
+            line-height: 1.8;
+            color: #333333;
+            text-align: justify;
+        }
+        
+        .financial-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 11px;
+        }
+        
+        .financial-table th {
+            background-color: #000000;
+            color: #ffffff;
+            padding: 12px 8px;
+            text-align: left;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .financial-table td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #eeeeee;
+            color: #333333;
+        }
+        
+        .financial-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        
+        .highlight-box {
+            background-color: #f0f0f0;
+            border-left: 4px solid #000000;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .contact-info {
+            position: absolute;
+            bottom: 40px;
+            right: 40px;
+            font-size: 10px;
+            color: #666666;
+            text-align: right;
+            line-height: 1.4;
+        }
+        
+        .footer {
+            position: absolute;
+            bottom: 20px;
+            left: 40px;
+            font-size: 8px;
+            color: #999999;
+        }
+        
+        /* Chart Placeholder */
+        .chart-placeholder {
+            width: 100%;
+            height: 200px;
+            background-color: #f5f5f5;
+            border: 2px dashed #cccccc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999999;
+            font-size: 14px;
+            margin: 20px 0;
+        }
+        
+        /* Responsive adjustments */
+        @media screen and (max-width: 768px) {
+            .page {
+                width: 100%;
+                padding: 20px;
+                margin: 0;
+                box-shadow: none;
+            }
+            
+            .company-name {
+                font-size: 32px;
+            }
+            
+            .report-year {
+                position: static;
+                margin-top: 20px;
+                font-size: 24px;
+            }
+        }
+        
+        @media print {
+            .page {
+                box-shadow: none;
+                margin: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <!-- Header Section -->
+        <div class="header">
+            <h1 class="company-name editable-text" data-field="companyName">{{companyName}}</h1>
+            <h2 class="report-title editable-text" data-field="reportTitle">{{reportTitle}}</h2>
+            <div class="report-year editable-text" data-field="year">{{year}}</div>
+        </div>
+        
+        <!-- Executive Summary Section -->
+        <div class="section">
+            <h3 class="section-title">Executive Summary</h3>
+            <div class="section-content editable-text" data-field="executiveSummary">
+                {{executiveSummary}}
+            </div>
+        </div>
+        
+        <!-- Financial Performance Section -->
+        <div class="section">
+            <h3 class="section-title">Financial Performance</h3>
+            <div class="section-content editable-text" data-field="financialPerformance">
+                {{financialPerformance}}
+            </div>
+            
+            <!-- Financial Summary Table -->
+            <table class="financial-table">
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Current Year</th>
+                        <th>Previous Year</th>
+                        <th>Change (%)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="editable-text" data-field="revenue_label">Total Revenue</td>
+                        <td class="editable-text" data-field="revenue_current">{{revenueCurrent}}</td>
+                        <td class="editable-text" data-field="revenue_previous">{{revenuePrevious}}</td>
+                        <td class="editable-text" data-field="revenue_change">{{revenueChange}}</td>
+                    </tr>
+                    <tr>
+                        <td class="editable-text" data-field="profit_label">Net Profit</td>
+                        <td class="editable-text" data-field="profit_current">{{profitCurrent}}</td>
+                        <td class="editable-text" data-field="profit_previous">{{profitPrevious}}</td>
+                        <td class="editable-text" data-field="profit_change">{{profitChange}}</td>
+                    </tr>
+                    <tr>
+                        <td class="editable-text" data-field="assets_label">Total Assets</td>
+                        <td class="editable-text" data-field="assets_current">{{assetsCurrent}}</td>
+                        <td class="editable-text" data-field="assets_previous">{{assetsPrevious}}</td>
+                        <td class="editable-text" data-field="assets_change">{{assetsChange}}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Key Achievements Section -->
+        <div class="section">
+            <h3 class="section-title">Key Achievements</h3>
+            <div class="highlight-box">
+                <div class="section-content editable-text" data-field="keyAchievements">
+                    {{keyAchievements}}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Market Analysis Section -->
+        <div class="section">
+            <h3 class="section-title">Market Analysis</h3>
+            <div class="section-content editable-text" data-field="marketAnalysis">
+                {{marketAnalysis}}
+            </div>
+            
+            <!-- Chart Placeholder -->
+            <div class="chart-placeholder">
+                <span>Market Performance Chart</span>
+            </div>
+        </div>
+        
+        <!-- Risk Assessment Section -->
+        <div class="section">
+            <h3 class="section-title">Risk Assessment</h3>
+            <div class="section-content editable-text" data-field="riskAssessment">
+                {{riskAssessment}}
+            </div>
+        </div>
+        
+        <!-- Future Outlook Section -->
+        <div class="section">
+            <h3 class="section-title">Future Outlook</h3>
+            <div class="section-content editable-text" data-field="futureOutlook">
+                {{futureOutlook}}
+            </div>
+        </div>
+        
+        <!-- Contact Information -->
+        <div class="contact-info">
+            <div class="editable-text" data-field="contactEmail">{{contactEmail}}</div>
+            <div class="editable-text" data-field="contactPhone">{{contactPhone}}</div>
+            <div class="editable-text" data-field="contactAddress">{{contactAddress}}</div>
+        </div>
+        
+        <!-- Footer -->
+        <div class="footer">
+            <span class="editable-text" data-field="footerText">Confidential Financial Report - {{companyName}} {{year}}</span>
+        </div>
+    </div>
+</body>
+</html>

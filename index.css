@@ -1,0 +1,324 @@
+/* Custom fonts from Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&family=Dancing+Script:wght@400;600&family=Cormorant+Garamond:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Mobile-first responsive design */
+@media (max-width: 768px) {
+  /* Ensure full viewport height on mobile */
+  html, body {
+    height: 100vh;
+    overflow-x: hidden;
+  }
+  
+  /* Prevent zoom on input focus */
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+  
+  /* Touch-friendly buttons */
+  button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Mobile-optimized cards */
+  .mobile-card {
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: 16px;
+  }
+  
+  /* Mobile navigation animations */
+  .mobile-nav-enter {
+    transform: translateX(-100%);
+  }
+  
+  .mobile-nav-enter-active {
+    transform: translateX(0);
+    transition: transform 300ms ease-in-out;
+  }
+  
+  .mobile-nav-exit {
+    transform: translateX(0);
+  }
+  
+  .mobile-nav-exit-active {
+    transform: translateX(-100%);
+    transition: transform 300ms ease-in-out;
+  }
+}
+
+/* App-like mobile experience */
+@supports (-webkit-touch-callout: none) {
+  /* iOS Safari specific styles */
+  .ios-safe-area {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+:root {
+  --background: hsl(0, 0%, 100%);
+  --foreground: hsl(0, 0%, 10%);
+  --muted: hsl(0, 0%, 95%);
+  --muted-foreground: hsl(0, 0%, 45%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(0, 0%, 10%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(0, 0%, 10%);
+  --border: hsl(0, 0%, 90%);
+  --input: hsl(0, 0%, 95%);
+  --primary: hsl(45, 100%, 50%);
+  --primary-foreground: hsl(0, 0%, 0%);
+  --secondary: hsl(0, 0%, 15%);
+  --secondary-foreground: hsl(0, 0%, 95%);
+  --accent: hsl(45, 100%, 50%);
+  --accent-foreground: hsl(0, 0%, 0%);
+  --destructive: hsl(0, 84.2%, 60.2%);
+  --destructive-foreground: hsl(60, 9.1%, 97.8%);
+  --ring: hsl(45, 100%, 50%);
+  --radius: 0.5rem;
+
+  /* Black and Gold Theme */
+  --gold: hsl(45, 100%, 50%);
+  --gold-dark: hsl(45, 80%, 40%);
+  --black: hsl(0, 0%, 0%);
+  --black-light: hsl(0, 0%, 15%);
+  --gray-light: hsl(0, 0%, 95%);
+}
+
+.dark {
+  --background: hsl(0, 0%, 5%);
+  --foreground: hsl(45, 100%, 85%);
+  --muted: hsl(0, 0%, 12%);
+  --muted-foreground: hsl(45, 50%, 60%);
+  --popover: hsl(0, 0%, 8%);
+  --popover-foreground: hsl(45, 100%, 85%);
+  --card: hsl(0, 0%, 8%);
+  --card-foreground: hsl(45, 100%, 85%);
+  --border: hsl(0, 0%, 18%);
+  --input: hsl(0, 0%, 15%);
+  --primary: hsl(45, 100%, 60%);
+  --primary-foreground: hsl(0, 0%, 0%);
+  --secondary: hsl(0, 0%, 15%);
+  --secondary-foreground: hsl(45, 100%, 85%);
+  --accent: hsl(45, 100%, 60%);
+  --accent-foreground: hsl(0, 0%, 0%);
+  --destructive: hsl(0, 75%, 55%);
+  --destructive-foreground: hsl(210, 40%, 98%);
+  --ring: hsl(45, 100%, 60%);
+  --radius: 0.5rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+    background-color: hsl(0, 0%, 100%);
+  }
+}
+
+@layer utilities {
+  .text-artisan-brown {
+    color: var(--artisan-brown);
+  }
+  
+  /* Page Break Utilities for Multi-Page Reports */
+  .page-break-before {
+    page-break-before: always !important;
+    break-before: page !important;
+  }
+  
+  .page-break-after {
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+  
+  /* Force visual page separation in screen view */
+  @media screen {
+    .page-break-before {
+      margin-top: 100vh !important;
+      display: block !important;
+      height: 100vh !important;
+      box-sizing: border-box !important;
+      overflow: hidden !important;
+    }
+    
+    .page-break-before:first-child {
+      margin-top: 0 !important;
+    }
+    
+    /* Cover page styling */
+    .cover-page {
+      height: 100vh !important;
+      overflow: hidden !important;
+      display: flex !important;
+      flex-direction: column !important;
+    }
+  }
+  
+  /* Ensure proper page breaks for printing */
+  @media print {
+    .page-break-before,
+    .cover-page {
+      page-break-before: always !important;
+      break-before: page !important;
+      page-break-after: always !important;
+      break-after: page !important;
+      height: 100vh !important;
+      overflow: hidden !important;
+    }
+    
+    .cover-page {
+      page-break-before: auto !important;
+      break-before: auto !important;
+    }
+  }
+  
+  .bg-artisan-brown {
+    background-color: var(--artisan-brown);
+  }
+  
+  .border-artisan-brown {
+    border-color: var(--artisan-brown);
+  }
+  
+  .text-artisan-chocolate {
+    color: var(--artisan-chocolate);
+  }
+  
+  .bg-artisan-chocolate {
+    background-color: var(--artisan-chocolate);
+  }
+  
+  .text-artisan-green {
+    color: var(--artisan-green);
+  }
+  
+  .bg-artisan-green {
+    background-color: var(--artisan-green);
+  }
+  
+  .bg-artisan-beige {
+    background-color: var(--artisan-beige);
+  }
+  
+  .hover\:bg-artisan-brown:hover {
+    background-color: var(--artisan-brown);
+  }
+  
+  .hover\:bg-artisan-chocolate:hover {
+    background-color: var(--artisan-chocolate);
+  }
+  
+  .hover\:text-artisan-brown:hover {
+    color: var(--artisan-brown);
+  }
+  
+  .hover\:text-artisan-chocolate:hover {
+    color: var(--artisan-chocolate);
+  }
+  
+  .hover\:border-artisan-brown:hover {
+    border-color: var(--artisan-brown);
+  }
+  
+  .focus\:ring-artisan-brown:focus {
+    --tw-ring-color: var(--artisan-brown);
+  }
+  
+  .focus\:border-artisan-brown:focus {
+    border-color: var(--artisan-brown);
+  }
+}
+
+.font-playfair {
+  font-family: 'Playfair Display', serif;
+}
+
+.font-dancing {
+  font-family: 'Dancing Script', cursive;
+}
+
+.font-inter {
+  font-family: 'Inter', sans-serif;
+}
+
+/* Mobile App-Like Styling */
+@media (max-width: 768px) {
+  /* Touch-friendly buttons */
+  button {
+    min-height: 44px; /* iOS recommended touch target */
+    min-width: 44px;
+  }
+  
+  /* Smooth scroll for mobile */
+  html, body {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    height: 100vh;
+    overflow-x: hidden;
+  }
+  
+  /* Mobile-first responsive design */
+  .container {
+    padding: 0 1rem;
+  }
+  
+  /* Mobile navigation styling */
+  .mobile-nav {
+    background: rgba(0, 0, 0, 0.95);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  
+  /* Enhanced mobile cards */
+  .mobile-card {
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    margin: 0.5rem;
+  }
+  
+  /* Mobile button enhancements */
+  .mobile-btn {
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+  }
+  
+  /* Touch feedback */
+  .mobile-btn:active {
+    transform: scale(0.98);
+  }
+  
+  /* Safe area for iOS devices */
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  /* Better mobile scrolling */
+  .mobile-scroll {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Mobile dialog improvements */
+  .mobile-dialog {
+    margin: 1rem;
+    width: calc(100vw - 2rem);
+    max-height: calc(100vh - 4rem);
+  }
+  
+  /* Text size adjustments for mobile */
+  .mobile-text-adjust {
+    font-size: 14px;
+    line-height: 1.4;
+  }
+}

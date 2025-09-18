@@ -1,0 +1,57 @@
+{
+  "id": "backend-resume-001",
+  "name": "Professional Resume",
+  "category": "resume",
+  "sector": "general",
+  "description": "Professional executive resume template with modern formatting",
+  "templateData": {
+    "sections": [
+      {
+        "type": "header",
+        "fields": {
+          "name": "{{candidate_name}}",
+          "title": "{{job_title}}",
+          "contact": "{{email}} | {{phone}} | LinkedIn: {{linkedin}}"
+        }
+      },
+      {
+        "type": "summary",
+        "title": "Professional Summary",
+        "content": "{{professional_summary}}"
+      },
+      {
+        "type": "experience",
+        "title": "Professional Experience",
+        "entries": [
+          {
+            "position": "{{position_1}}",
+            "company": "{{company_1}}",
+            "duration": "{{duration_1}}",
+            "achievements": ["{{achievement_1}}", "{{achievement_2}}", "{{achievement_3}}"]
+          }
+        ]
+      },
+      {
+        "type": "education",
+        "title": "Education",
+        "entries": [
+          {
+            "degree": "{{degree}}",
+            "institution": "{{university}}",
+            "year": "{{graduation_year}}"
+          }
+        ]
+      },
+      {
+        "type": "skills",
+        "title": "Core Skills",
+        "items": ["{{skill_1}}", "{{skill_2}}", "{{skill_3}}", "{{skill_4}}"]
+      }
+    ]
+  },
+  "aiPromptTemplate": "Create a professional resume for {{candidate_name}} based on their experience in {{industry}}. Extract specific details from the user prompt to personalize: name, job title, experience level, skills, and achievements. Structure the content using the template sections and make it industry-specific.",
+  "tags": ["resume", "cv", "professional", "career", "job"],
+  "previewImageUrl": "https://images.unsplash.com/photo-1586281380349-632531db7ed4?ixlib=rb-4.0.3&w=300&h=200&fit=crop",
+  "usageCount": 0,
+  "isActive": true
+}

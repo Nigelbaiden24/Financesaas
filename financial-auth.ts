@@ -1,898 +1,211 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
-import { realtimeStateManager } from "@/lib/realtime-state-manager";
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+import { Request, Response, NextFunction } from 'express';
+import { db } from './db';
+import { users } from '@shared/schema';
+import { eq, and, sql } from 'drizzle-orm';
 
-// Types
-interface User {
-  id: string;
+const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
+const JWT_EXPIRES_IN = '15m';
+const REFRESH_TOKEN_EXPIRES_IN = '7d';
+
+export interface AuthenticatedRequest extends Request {
+  user?: {
+    id: string;
+    email: string;
+    organizationId: string;
+    role: string;
+    permissions: string[];
+  };
+}
+
+// Temporary role system until full migration
+const TEMP_ROLES = {
+  admin: ['clients:view', 'clients:create', 'clients:edit', 'clients:delete', 'portfolios:view', 'portfolios:create', 'portfolios:edit', 'portfolios:delete', 'planning:view', 'planning:create', 'planning:edit', 'reports:view', 'reports:create', 'compliance:view', 'compliance:manage', 'org:settings', 'org:users'],
+  adviser: ['clients:view', 'clients:create', 'clients:edit', 'portfolios:view', 'portfolios:create', 'portfolios:edit', 'planning:view', 'planning:create', 'planning:edit', 'reports:view', 'reports:create', 'compliance:view'],
+  paraplanner: ['clients:view', 'portfolios:view', 'planning:view', 'planning:create', 'planning:edit', 'reports:view', 'reports:create', 'compliance:view'],
+};
+
+// JWT utility functions
+export const generateTokens = (user: any) => {
+  const role = user.role || 'adviser'; // Default to adviser
+  const organizationId = user.organizationId || 'temp-org-' + user.id; // Temporary org ID
+  
+  const accessToken = jwt.sign(
+    {
+      id: user.id,
+      email: user.email,
+      organizationId,
+      role,
+      permissions: TEMP_ROLES[role as keyof typeof TEMP_ROLES] || TEMP_ROLES.adviser,
+    },
+    JWT_SECRET,
+    { expiresIn: JWT_EXPIRES_IN }
+  );
+
+  const refreshToken = jwt.sign(
+    { id: user.id },
+    JWT_SECRET,
+    { expiresIn: REFRESH_TOKEN_EXPIRES_IN }
+  );
+
+  return { accessToken, refreshToken };
+};
+
+export const hashPassword = async (password: string): Promise<string> => {
+  return bcrypt.hash(password, 12);
+};
+
+export const comparePassword = async (password: string, hashedPassword: string): Promise<boolean> => {
+  return bcrypt.compare(password, hashedPassword);
+};
+
+// Authentication middleware  
+export const authenticate = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'Not authenticated' });
+    }
+
+    const token = authHeader.substring(7);
+    
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      
+      // Get fresh user data using raw SQL for compatibility
+      const result = await db.execute(sql`
+        SELECT * FROM users WHERE id = ${decoded.id} AND is_active = true
+      `);
+
+      if (!result.rows.length) {
+        return res.status(401).json({ message: 'User not found or inactive' });
+      }
+
+      req.user = {
+        id: decoded.id,
+        email: decoded.email,
+        organizationId: decoded.organizationId,
+        role: decoded.role,
+        permissions: decoded.permissions || [],
+      };
+
+      next();
+    } catch (jwtError) {
+      return res.status(401).json({ message: 'Invalid token' });
+    }
+  } catch (error) {
+    console.error('Authentication error:', error);
+    return res.status(500).json({ message: 'Authentication failed' });
+  }
+};
+
+// Role-based authorization middleware
+export const authorize = (requiredPermission: string) => {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    if (!req.user.permissions.includes(requiredPermission)) {
+      return res.status(403).json({ 
+        message: 'Insufficient permissions',
+        required: requiredPermission,
+        available: req.user.permissions
+      });
+    }
+
+    next();
+  };
+};
+
+// Organization isolation middleware - ensures users can only access their org's data
+export const requireOrganization = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  if (!req.user?.organizationId) {
+    return res.status(401).json({ message: 'Organization context required' });
+  }
+  next();
+};
+
+// Admin role check
+export const requireAdmin = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Admin access required' });
+  }
+  next();
+};
+
+// Temporary login function for existing users
+export const loginUser = async (email: string, password: string) => {
+  try {
+    const user = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
+
+    if (!user.length || !user[0].password) {
+      return null;
+    }
+
+    const isValidPassword = await bcrypt.compare(password, user[0].password);
+    if (!isValidPassword) {
+      return null;
+    }
+
+    // Update last login
+    await db
+      .update(users)
+      .set({ lastLoginAt: new Date() })
+      .where(eq(users.id, user[0].id));
+
+    return user[0];
+  } catch (error) {
+    console.error('Login error:', error);
+    return null;
+  }
+};
+
+// Register new user with role
+export const registerUser = async (userData: {
   email: string;
+  password: string;
   firstName: string;
   lastName: string;
-  role: 'admin' | 'adviser' | 'paraplanner';
-}
-
-interface AuthResponse {
-  user: User;
-  accessToken: string;
-  refreshToken: string;
-}
-
-// Auth utilities
-class AuthManager {
-  private static ACCESS_TOKEN_KEY = 'financial_access_token';
-  private static REFRESH_TOKEN_KEY = 'financial_refresh_token';
-  private static USER_KEY = 'financial_user';
-
-  static getAccessToken(): string | null {
-    return localStorage.getItem(this.ACCESS_TOKEN_KEY);
-  }
-
-  static setAccessToken(token: string): void {
-    localStorage.setItem(this.ACCESS_TOKEN_KEY, token);
-  }
-
-  static getRefreshToken(): string | null {
-    return localStorage.getItem(this.REFRESH_TOKEN_KEY);
-  }
-
-  static setRefreshToken(token: string): void {
-    localStorage.setItem(this.REFRESH_TOKEN_KEY, token);
-  }
-
-  static getUser(): User | null {
-    const userStr = localStorage.getItem(this.USER_KEY);
-    return userStr ? JSON.parse(userStr) : null;
-  }
-
-  static setUser(user: User): void {
-    localStorage.setItem(this.USER_KEY, JSON.stringify(user));
-  }
-
-  static clearAuth(): void {
-    localStorage.removeItem(this.ACCESS_TOKEN_KEY);
-    localStorage.removeItem(this.REFRESH_TOKEN_KEY);
-    localStorage.removeItem(this.USER_KEY);
-  }
-
-  static isAuthenticated(): boolean {
-    return !!this.getAccessToken() && !!this.getUser();
-  }
-
-  static getAuthHeaders(): Record<string, string> {
-    const token = this.getAccessToken();
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  }
-}
-
-// Custom fetch wrapper that adds auth headers
-const financialApiRequest = async (url: string, options: RequestInit = {}) => {
-  const authHeaders = AuthManager.getAuthHeaders();
-  
-  const response = await fetch(`/api/financial${url}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeaders,
-      ...options.headers,
-    },
-  });
-
-  if (response.status === 401) {
-    AuthManager.clearAuth();
-    window.location.href = '/login';
-    throw new Error('Unauthorized');
-  }
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `HTTP ${response.status}`);
-  }
-
-  return response.json();
-};
-
-// Auth hooks
-export const useFinancialAuth = () => {
-  const queryClient = useQueryClient();
-
-  const { data: user, isLoading, error } = useQuery({
-    queryKey: ['financial-auth-user'],
-    queryFn: async () => {
-      if (!AuthManager.isAuthenticated()) {
-        return null;
-      }
-      try {
-        const response = await financialApiRequest('/auth/user');
-        return response.user;
-      } catch (error) {
-        AuthManager.clearAuth();
-        return null;
-      }
-    },
-    retry: false,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-  });
-
-  const loginMutation = useMutation({
-    mutationFn: async ({ email, password }: { email: string; password: string }) => {
-      const response = await fetch('/api/financial/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Login failed');
-      }
-
-      return response.json() as Promise<AuthResponse>;
-    },
-    onSuccess: (data) => {
-      AuthManager.setAccessToken(data.accessToken);
-      AuthManager.setRefreshToken(data.refreshToken);
-      AuthManager.setUser(data.user);
-      queryClient.setQueryData(['financial-auth-user'], data.user);
-      queryClient.invalidateQueries({ queryKey: ['financial-auth-user'] });
-    },
-  });
-
-  const registerMutation = useMutation({
-    mutationFn: async (userData: {
-      email: string;
-      password: string;
-      firstName: string;
-      lastName: string;
-      role?: string;
-    }) => {
-      const response = await fetch('/api/financial/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userData),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Registration failed');
-      }
-
-      return response.json() as Promise<AuthResponse>;
-    },
-    onSuccess: (data) => {
-      AuthManager.setAccessToken(data.accessToken);
-      AuthManager.setRefreshToken(data.refreshToken);
-      AuthManager.setUser(data.user);
-      queryClient.setQueryData(['financial-auth-user'], data.user);
-      queryClient.invalidateQueries({ queryKey: ['financial-auth-user'] });
-    },
-  });
-
-  const logout = () => {
-    AuthManager.clearAuth();
-    queryClient.clear();
-    window.location.href = '/';
-  };
-
-  return {
-    user,
-    isLoading,
-    isAuthenticated: AuthManager.isAuthenticated(),
-    login: loginMutation.mutateAsync,
-    register: registerMutation.mutateAsync,
-    logout,
-    isLoginPending: loginMutation.isPending,
-    isRegisterPending: registerMutation.isPending,
-    loginError: loginMutation.error,
-    registerError: registerMutation.error,
-  };
-};
-
-// Financial planning data hooks
-export const useFinancialDashboard = () => {
-  return useQuery({
-    queryKey: ['financial-dashboard'],
-    queryFn: () => financialApiRequest('/dashboard'),
-    enabled: AuthManager.isAuthenticated(),
-  });
-};
-
-export const useFinancialClients = () => {
-  return useQuery({
-    queryKey: ['financial-clients'],
-    queryFn: () => financialApiRequest('/clients'),
-    enabled: AuthManager.isAuthenticated(),
-  });
-};
-
-export const useFinancialPortfolios = () => {
-  return useQuery({
-    queryKey: ['financial-portfolios'],
-    queryFn: () => financialApiRequest('/portfolios'),
-    enabled: AuthManager.isAuthenticated(),
-  });
-};
-
-export const useFinancialScenario = () => {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async (scenarioData: {
-      currentAge: number;
-      retirementAge: number;
-      monthlyContribution: number;
-      expectedReturn: number;
-      inflationRate?: number;
-      currentSavings?: number;
-      clientId?: string;
-    }) => {
-      // Optimistic update for scenario results (show loading state)
-      const optimisticScenario = {
-        id: 'temp-' + Date.now(),
-        ...scenarioData,
-        scenarios: {
-          conservative: { projectedValue: 0, monthlyIncome: 0 },
-          moderate: { projectedValue: 0, monthlyIncome: 0 },
-          aggressive: { projectedValue: 0, monthlyIncome: 0 }
-        },
-        isCalculating: true,
-        createdAt: new Date().toISOString()
-      };
-      
-      queryClient.setQueryData(['latest-scenario'], optimisticScenario);
-      
-      try {
-        const result = await financialApiRequest('/scenarios/run', {
-          method: 'POST',
-          body: JSON.stringify(scenarioData),
-        });
-        return result;
-      } catch (error) {
-        // Remove optimistic data on error
-        queryClient.removeQueries({ queryKey: ['latest-scenario'] });
-        throw error;
-      }
-    },
-    onSuccess: async (data, variables) => {
-      // Store the actual scenario result
-      queryClient.setQueryData(['latest-scenario'], data);
-      
-      // Cross-module invalidation for scenario updates
-      await realtimeStateManager.invalidateScenarioRelated(variables.clientId);
-      
-      // Update dashboard metrics that may depend on scenario results
-      queryClient.invalidateQueries({ queryKey: ['kpi-summary'] });
-    },
-    onError: (error) => {
-      console.error('Scenario calculation failed:', error);
-      queryClient.removeQueries({ queryKey: ['latest-scenario'] });
-    },
-  });
-};
-
-export const useFinancialComplianceTasks = () => {
-  return useQuery({
-    queryKey: ['compliance-tasks'],
-    queryFn: () => financialApiRequest('/tasks'),
-    enabled: AuthManager.isAuthenticated(),
-  });
-};
-
-export const useCreateFinancialClient = () => {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async (clientData: any) => {
-      // Optimistic update
-      const optimisticClient = {
-        id: 'temp-' + Date.now(),
-        ...clientData,
-        status: 'prospect',
-        portfolioValue: 0,
-        lastReview: new Date().toISOString().split('T')[0]
-      };
-      
-      const { rollback } = realtimeStateManager.optimisticUpdate(
-        ['financial-clients'],
-        (old: any[] = []) => [...old, optimisticClient]
-      );
-      
-      try {
-        const result = await financialApiRequest('/clients', {
-          method: 'POST',
-          body: JSON.stringify(clientData),
-        });
-        return result;
-      } catch (error) {
-        rollback();
-        throw error;
-      }
-    },
-    onSuccess: async (data, variables) => {
-      // Comprehensive cross-module invalidation
-      await realtimeStateManager.invalidateClientRelated();
-      
-      // Trigger pipeline update for new prospect
-      await realtimeStateManager.invalidatePipelineRelated();
-    },
-    onError: (error) => {
-      console.error('Failed to create client:', error);
-    },
-  });
-};
-
-export const useUpdateFinancialClient = () => {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: ({ id, ...clientData }: any) => financialApiRequest(`/clients/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(clientData),
-    }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['financial-clients'] });
-      queryClient.invalidateQueries({ queryKey: ['financial-dashboard'] });
-    },
-  });
-};
-
-export const useCreateComplianceTask = () => {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: (taskData: any) => financialApiRequest('/tasks', {
-      method: 'POST',
-      body: JSON.stringify(taskData),
-    }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['compliance-tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['financial-dashboard'] });
-    },
-  });
-};
-
-export const useUpdateComplianceTask = () => {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async ({ id, ...taskData }: any) => {
-      // Optimistic update for task status
-      const { rollback } = realtimeStateManager.optimisticUpdate(
-        ['compliance-tasks'],
-        (old: any[] = []) => old.map(task => 
-          task.id === id ? { ...task, ...taskData, updatedAt: new Date() } : task
-        )
-      );
-      
-      try {
-        const result = await financialApiRequest(`/tasks/${id}`, {
-          method: 'PUT',
-          body: JSON.stringify(taskData),
-        });
-        return result;
-      } catch (error) {
-        rollback();
-        throw error;
-      }
-    },
-    onSuccess: async (data, variables) => {
-      // Cross-module invalidation for task updates
-      await realtimeStateManager.invalidateTaskRelated(variables.clientId);
-      
-      // Update notification center if task is completed
-      if (variables.status === 'completed') {
-        queryClient.invalidateQueries({ queryKey: ['enhanced-notifications'] });
-      }
-    },
-  });
-};
-
-export const useGenerateReport = () => {
-  return useMutation({
-    mutationFn: ({ type, ...data }: { type: 'suitability' | 'portfolio' } & any) => 
-      financialApiRequest(`/reports/${type}`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
-  });
-};
-
-// Holdings management hooks
-export const usePortfolioHoldings = (portfolioId: string | null) => {
-  return useQuery({
-    queryKey: ['portfolio-holdings', portfolioId],
-    queryFn: () => {
-      if (!portfolioId) throw new Error('Portfolio ID is required');
-      return financialApiRequest(`/portfolios/${portfolioId}/holdings`);
-    },
-    enabled: AuthManager.isAuthenticated() && !!portfolioId,
-    staleTime: 2 * 60 * 1000, // 2 minutes
-  });
-};
-
-export const useCreateHolding = () => {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async ({ portfolioId, ...holdingData }: {
-      portfolioId: string;
-      symbol: string;
-      name: string;
-      assetClass: 'equity' | 'bond' | 'cash' | 'property' | 'commodity' | 'alternative';
-      sector?: string;
-      region?: string;
-      quantity: number;
-      averageCost?: number;
-      currentPrice: number;
-    }) => {
-      // Optimistic update for new holding
-      const optimisticHolding = {
-        id: 'temp-' + Date.now(),
-        portfolioId,
-        ...holdingData,
-        marketValue: holdingData.quantity * holdingData.currentPrice,
-        gainLoss: 0,
-        gainLossPercent: 0,
-        createdAt: new Date().toISOString()
-      };
-      
-      const { rollback } = realtimeStateManager.optimisticUpdate(
-        ['portfolio-holdings', portfolioId],
-        (old: any[] = []) => [...old, optimisticHolding]
-      );
-      
-      try {
-        const result = await financialApiRequest(`/portfolios/${portfolioId}/holdings`, {
-          method: 'POST',
-          body: JSON.stringify(holdingData),
-        });
-        return result;
-      } catch (error) {
-        rollback();
-        throw error;
-      }
-    },
-    onSuccess: async (data, variables) => {
-      // Get portfolio data to find client ID
-      const portfolioData = queryClient.getQueryData(['financial-portfolios']);
-      const portfolio = Array.isArray(portfolioData) ? 
-        portfolioData.find((p: any) => p.id === variables.portfolioId) : null;
-      
-      // Comprehensive cross-module invalidation
-      await realtimeStateManager.invalidatePortfolioRelated(
-        variables.portfolioId, 
-        portfolio?.clientId
-      );
-      
-      // Update scenario calculations if they depend on this portfolio
-      await realtimeStateManager.invalidateScenarioRelated(portfolio?.clientId);
-    },
-  });
-};
-
-export const useUpdateHolding = () => {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: ({ portfolioId, holdingId, ...holdingData }: {
-      portfolioId: string;
-      holdingId: string;
-      symbol?: string;
-      name?: string;
-      assetClass?: 'equity' | 'bond' | 'cash' | 'property' | 'commodity' | 'alternative';
-      sector?: string;
-      region?: string;
-      quantity?: number;
-      averageCost?: number;
-      currentPrice?: number;
-    }) => financialApiRequest(`/portfolios/${portfolioId}/holdings/${holdingId}`, {
-      method: 'PUT',
-      body: JSON.stringify(holdingData),
-    }),
-    onSuccess: (data, variables) => {
-      // Invalidate portfolio holdings
-      queryClient.invalidateQueries({ queryKey: ['portfolio-holdings', variables.portfolioId] });
-      // Invalidate specific holding cache
-      queryClient.invalidateQueries({ queryKey: ['holding-details', variables.holdingId] });
-      // Invalidate portfolios to update total values
-      queryClient.invalidateQueries({ queryKey: ['financial-portfolios'] });
-      // Invalidate dashboard to update summary stats
-      queryClient.invalidateQueries({ queryKey: ['financial-dashboard'] });
-    },
-  });
-};
-
-export const useDeleteHolding = () => {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: ({ portfolioId, holdingId }: { portfolioId: string; holdingId: string }) => 
-      financialApiRequest(`/portfolios/${portfolioId}/holdings/${holdingId}`, {
-        method: 'DELETE',
-      }),
-    onSuccess: (data, variables) => {
-      // Invalidate portfolio holdings
-      queryClient.invalidateQueries({ queryKey: ['portfolio-holdings', variables.portfolioId] });
-      // Remove specific holding from cache
-      queryClient.removeQueries({ queryKey: ['holding-details', variables.holdingId] });
-      // Invalidate portfolios to update total values
-      queryClient.invalidateQueries({ queryKey: ['financial-portfolios'] });
-      // Invalidate dashboard to update summary stats
-      queryClient.invalidateQueries({ queryKey: ['financial-dashboard'] });
-    },
-  });
-};
-
-export const useHoldingDetails = (portfolioId: string | null, holdingId: string | null) => {
-  return useQuery({
-    queryKey: ['holding-details', holdingId],
-    queryFn: () => {
-      if (!portfolioId || !holdingId) throw new Error('Portfolio ID and Holding ID are required');
-      return financialApiRequest(`/portfolios/${portfolioId}/holdings/${holdingId}`);
-    },
-    enabled: AuthManager.isAuthenticated() && !!portfolioId && !!holdingId,
-    staleTime: 2 * 60 * 1000, // 2 minutes
-  });
-};
-
-// Enhanced portfolio query with client relationship
-export const useClientPortfolios = (clientId: string | null) => {
-  return useQuery({
-    queryKey: ['client-portfolios', clientId],
-    queryFn: () => {
-      if (!clientId) throw new Error('Client ID is required');
-      return financialApiRequest(`/clients/${clientId}/portfolios`);
-    },
-    enabled: AuthManager.isAuthenticated() && !!clientId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-  });
-};
-
-// Portfolio performance data hook
-export const usePortfolioPerformance = (portfolioId: string | null, period: '1M' | '3M' | '6M' | '1Y' | '3Y' = '1Y') => {
-  return useQuery({
-    queryKey: ['portfolio-performance', portfolioId, period],
-    queryFn: () => {
-      if (!portfolioId) throw new Error('Portfolio ID is required');
-      return financialApiRequest(`/portfolios/${portfolioId}/performance?period=${period}`);
-    },
-    enabled: AuthManager.isAuthenticated() && !!portfolioId,
-    staleTime: 10 * 60 * 1000, // 10 minutes for performance data
-  });
-};
-
-// ===================== COMPREHENSIVE COMPLIANCE TASK MANAGEMENT HOOKS =====================
-
-export const useComplianceTasks = (filters?: {
-  clientId?: string;
-  assignedTo?: string;
-  status?: string;
-  type?: string;
-  overdue?: boolean;
-  search?: string;
+  role?: string;
 }) => {
-  const queryParams = new URLSearchParams();
-  if (filters) {
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value !== undefined && value !== '') {
-        queryParams.append(key, value.toString());
-      }
-    });
+  try {
+    // Check if user already exists
+    const existingUser = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, userData.email))
+      .limit(1);
+
+    if (existingUser.length) {
+      throw new Error("User with this email already exists");
+    }
+
+    // Hash password
+    const hashedPassword = await hashPassword(userData.password);
+
+    // Create user
+    const newUser = await db
+      .insert(users)
+      .values({
+        email: userData.email,
+        password: hashedPassword,
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        isActive: true,
+        emailVerified: true,
+      })
+      .returning();
+
+    return newUser[0];
+  } catch (error) {
+    console.error('Registration error:', error);
+    throw error;
   }
-  
-  return useQuery({
-    queryKey: ['compliance-tasks', filters],
-    queryFn: () => financialApiRequest(`/tasks?${queryParams.toString()}`),
-    enabled: AuthManager.isAuthenticated(),
-  });
 };
-
-export const useComplianceTask = (taskId: string) => {
-  return useQuery({
-    queryKey: ['compliance-task', taskId],
-    queryFn: () => financialApiRequest(`/tasks/${taskId}`),
-    enabled: AuthManager.isAuthenticated() && !!taskId,
-  });
-};
-
-
-export const useDeleteComplianceTask = () => {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: (taskId: string) => {
-      return financialApiRequest(`/tasks/${taskId}`, {
-        method: 'DELETE',
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['compliance-tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['financial-dashboard'] });
-    },
-  });
-};
-
-export const useUpdateTaskChecklist = () => {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: ({ taskId, checklistId, completed }: {
-      taskId: string;
-      checklistId: string;
-      completed: boolean;
-    }) => {
-      return financialApiRequest(`/tasks/${taskId}/checklist/${checklistId}`, {
-        method: 'PUT',
-        body: JSON.stringify({ completed }),
-      });
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['compliance-task', variables.taskId] });
-      queryClient.invalidateQueries({ queryKey: ['compliance-tasks'] });
-    },
-  });
-};
-
-// Task Templates Hooks
-export const useTaskTemplates = () => {
-  return useQuery({
-    queryKey: ['task-templates'],
-    queryFn: () => financialApiRequest('/task-templates'),
-    enabled: AuthManager.isAuthenticated(),
-  });
-};
-
-export const useCreateTaskFromTemplate = () => {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: ({ templateId, clientId, assignedTo, dueDate }: {
-      templateId: string;
-      clientId: string;
-      assignedTo: string;
-      dueDate?: string;
-    }) => {
-      return financialApiRequest(`/task-templates/${templateId}/create`, {
-        method: 'POST',
-        body: JSON.stringify({ clientId, assignedTo, dueDate }),
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['compliance-tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['financial-dashboard'] });
-    },
-  });
-};
-
-// Workflow Automation Hooks
-export const useCreateClientOnboardingTasks = () => {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: (clientId: string) => {
-      return financialApiRequest(`/workflow/onboard-client/${clientId}`, {
-        method: 'POST',
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['compliance-tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['financial-dashboard'] });
-    },
-  });
-};
-
-export const useUpdateTaskStatus = () => {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: ({ taskId, status, notes }: {
-      taskId: string;
-      status: string;
-      notes?: string;
-    }) => {
-      return financialApiRequest(`/workflow/task/${taskId}/status`, {
-        method: 'PUT',
-        body: JSON.stringify({ status, notes }),
-      });
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['compliance-tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['compliance-task', variables.taskId] });
-      queryClient.invalidateQueries({ queryKey: ['financial-dashboard'] });
-    },
-  });
-};
-
-export const useOverdueTasks = () => {
-  return useQuery({
-    queryKey: ['overdue-tasks'],
-    queryFn: () => financialApiRequest('/tasks/overdue'),
-    enabled: AuthManager.isAuthenticated(),
-  });
-};
-
-// Comprehensive Compliance Manager Hook
-export const useComplianceManager = () => {
-  const tasksQuery = useComplianceTasks();
-  const templatesQuery = useTaskTemplates();
-  const overdueTasks = useOverdueTasks();
-  
-  const createTask = useCreateComplianceTask();
-  const updateTask = useUpdateComplianceTask();
-  const deleteTask = useDeleteComplianceTask();
-  const updateChecklist = useUpdateTaskChecklist();
-  const createFromTemplate = useCreateTaskFromTemplate();
-  const updateStatus = useUpdateTaskStatus();
-  const createOnboarding = useCreateClientOnboardingTasks();
-  
-  return {
-    // Data
-    tasks: tasksQuery.data || [],
-    templates: templatesQuery.data || [],
-    overdue: overdueTasks.data || [],
-    
-    // Loading states
-    isLoadingTasks: tasksQuery.isLoading,
-    isLoadingTemplates: templatesQuery.isLoading,
-    
-    // Actions
-    createTask: createTask.mutateAsync,
-    updateTask: updateTask.mutateAsync,
-    deleteTask: deleteTask.mutateAsync,
-    updateChecklist: updateChecklist.mutateAsync,
-    createFromTemplate: createFromTemplate.mutateAsync,
-    updateStatus: updateStatus.mutateAsync,
-    createOnboarding: createOnboarding.mutateAsync,
-    
-    // Action states
-    isCreating: createTask.isPending,
-    isUpdating: updateTask.isPending,
-    isDeleting: deleteTask.isPending,
-    isUpdatingChecklist: updateChecklist.isPending,
-    isCreatingFromTemplate: createFromTemplate.isPending,
-    
-    // Refresh functions
-    refetchTasks: tasksQuery.refetch,
-    refetchTemplates: templatesQuery.refetch,
-    refetchOverdue: overdueTasks.refetch,
-  };
-};
-
-// === Enhanced Dashboard Hooks ===
-
-// Pipeline Management Hooks
-export const usePipelineStages = () => {
-  return useQuery({
-    queryKey: ['pipeline-stages'],
-    queryFn: () => financialApiRequest('/pipeline/stages'),
-    enabled: AuthManager.isAuthenticated(),
-  });
-};
-
-export const usePipelineOverview = () => {
-  return useQuery({
-    queryKey: ['pipeline-overview'],
-    queryFn: () => financialApiRequest('/pipeline/overview'),
-    enabled: AuthManager.isAuthenticated(),
-    refetchInterval: 30000, // Refresh every 30 seconds
-  });
-};
-
-export const useUpdateClientStage = () => {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async ({ clientId, stageId, notes }: { clientId: string; stageId: string; notes?: string }) => {
-      // Optimistic update for pipeline stage
-      const { rollback } = realtimeStateManager.optimisticUpdate(
-        ['pipeline-overview'],
-        (old: any) => {
-          if (!old?.stages) return old;
-          
-          const newStages = old.stages.map((stage: any) => ({
-            ...stage,
-            clients: stage.clients.filter((client: any) => client.id !== clientId)
-          }));
-          
-          const targetStage = newStages.find((stage: any) => stage.stageId === stageId);
-          if (targetStage) {
-            const clientData = old.stages
-              .flatMap((stage: any) => stage.clients)
-              .find((client: any) => client.id === clientId);
-            
-            if (clientData) {
-              targetStage.clients.push({
-                ...clientData,
-                notes: notes || clientData.notes,
-                movedAt: new Date().toISOString()
-              });
-            }
-          }
-          
-          return { ...old, stages: newStages };
-        }
-      );
-      
-      try {
-        const result = await financialApiRequest(`/pipeline/client/${clientId}/stage`, {
-          method: 'PUT',
-          body: JSON.stringify({ stageId, notes }),
-        });
-        return result;
-      } catch (error) {
-        rollback();
-        throw error;
-      }
-    },
-    onSuccess: async (data, variables) => {
-      // Comprehensive pipeline and client invalidation
-      await realtimeStateManager.invalidatePipelineRelated();
-      await realtimeStateManager.invalidateClientRelated(variables.clientId);
-      
-      // Trigger notification for pipeline movement
-      realtimeStateManager.handleRealtimeUpdate({
-        type: 'pipeline_moved',
-        data: { clientId: variables.clientId, stageId: variables.stageId }
-      });
-    },
-  });
-};
-
-// Enhanced Notifications Hooks
-export const useEnhancedNotifications = (unreadOnly: boolean = false) => {
-  return useQuery({
-    queryKey: ['enhanced-notifications', unreadOnly],
-    queryFn: () => financialApiRequest(`/notifications${unreadOnly ? '?unreadOnly=true' : ''}`),
-    enabled: AuthManager.isAuthenticated(),
-    refetchInterval: 60000, // Refresh every minute
-  });
-};
-
-export const useMarkNotificationRead = () => {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async (notificationId: string) => {
-      return financialApiRequest(`/notifications/${notificationId}/read`, {
-        method: 'PUT',
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['enhanced-notifications'] });
-    },
-  });
-};
-
-export const useMarkAllNotificationsRead = () => {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async () => {
-      return financialApiRequest('/notifications/mark-all-read', {
-        method: 'PUT',
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['enhanced-notifications'] });
-    },
-  });
-};
-
-// KPI and Analytics Hooks
-export const useKpiHistorical = (metric?: string, period: string = '6months') => {
-  return useQuery({
-    queryKey: ['kpi-historical', metric, period],
-    queryFn: () => financialApiRequest(`/kpi/historical?${metric ? `metric=${metric}&` : ''}period=${period}`),
-    enabled: AuthManager.isAuthenticated(),
-  });
-};
-
-export const useKpiSummary = () => {
-  return useQuery({
-    queryKey: ['kpi-summary'],
-    queryFn: () => financialApiRequest('/kpi/summary'),
-    enabled: AuthManager.isAuthenticated(),
-    refetchInterval: 60000, // Refresh every minute
-  });
-};
-
-export { AuthManager };

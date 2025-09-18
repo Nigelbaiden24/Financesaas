@@ -1,1 +1,1 @@
-# Core utilities
+# FastAPI Financial Planning App

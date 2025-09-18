@@ -1,1 +1,1 @@
-# Pydantic schemas
+# Core utilities

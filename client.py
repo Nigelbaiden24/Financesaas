@@ -1,124 +1,73 @@
-from pydantic import BaseModel, EmailStr
-from typing import List, Optional, Dict, Any
-from datetime import datetime
-from decimal import Decimal
+from sqlalchemy import Column, String, Text, DateTime, Numeric, Boolean, JSON, Integer
+from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
+from app.database import Base
+import uuid
 
-# Base client schema
-class ClientBase(BaseModel):
-    client_number: str
-    first_name: str
-    last_name: str
-    email: Optional[EmailStr] = None
-    phone: Optional[str] = None
-    date_of_birth: Optional[datetime] = None
-    nationality: Optional[str] = None
-    address: Optional[Dict[str, Any]] = None
-    marital_status: Optional[str] = None
-    employment_status: Optional[str] = None
-    employer: Optional[str] = None
-    job_title: Optional[str] = None
-    annual_income: Optional[Decimal] = None
-    net_worth: Optional[Decimal] = None
-    risk_tolerance: str = "moderate"
-    investment_experience: Optional[str] = None
-    objectives: List[Dict[str, Any]] = []
-    dependents: List[Dict[str, Any]] = []
-    status: str = "prospect"
-    source: Optional[str] = None
-    notes: Optional[str] = None
-    next_review_date: Optional[datetime] = None
-
-class ClientCreate(ClientBase):
-    organization_id: str
-    adviser_id: Optional[str] = None
-
-class ClientUpdate(BaseModel):
-    client_number: Optional[str] = None
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    email: Optional[EmailStr] = None
-    phone: Optional[str] = None
-    date_of_birth: Optional[datetime] = None
-    nationality: Optional[str] = None
-    address: Optional[Dict[str, Any]] = None
-    marital_status: Optional[str] = None
-    employment_status: Optional[str] = None
-    employer: Optional[str] = None
-    job_title: Optional[str] = None
-    annual_income: Optional[Decimal] = None
-    net_worth: Optional[Decimal] = None
-    risk_tolerance: Optional[str] = None
-    investment_experience: Optional[str] = None
-    objectives: Optional[List[Dict[str, Any]]] = None
-    dependents: Optional[List[Dict[str, Any]]] = None
-    status: Optional[str] = None
-    source: Optional[str] = None
-    notes: Optional[str] = None
-    next_review_date: Optional[datetime] = None
-
-class ClientResponse(ClientBase):
-    id: str
-    organization_id: str
-    adviser_id: Optional[str] = None
-    last_review_date: Optional[datetime] = None
-    created_at: datetime
-    updated_at: Optional[datetime] = None
+class Client(Base):
+    __tablename__ = "clients"
     
-    class Config:
-        from_attributes = True
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    organization_id = Column(String, nullable=False)
+    adviser_id = Column(String)  # Primary adviser
+    client_number = Column(Text, nullable=False)  # Unique within org
+    first_name = Column(Text, nullable=False)
+    last_name = Column(Text, nullable=False)
+    email = Column(Text)
+    phone = Column(Text)
+    date_of_birth = Column(DateTime)
+    nationality = Column(Text)
+    address = Column(JSON)  # {street, city, postcode, country}
+    marital_status = Column(Text)  # single, married, divorced, widowed
+    employment_status = Column(Text)  # employed, self-employed, retired, unemployed
+    employer = Column(Text)
+    job_title = Column(Text)
+    annual_income = Column(Numeric(12, 2))
+    net_worth = Column(Numeric(12, 2))
+    risk_tolerance = Column(Text, default="moderate")  # conservative, moderate, aggressive
+    investment_experience = Column(Text)  # none, basic, experienced, expert
+    objectives = Column(JSON, default=list)  # Array of financial objectives
+    dependents = Column(JSON, default=list)  # Array of dependent information
+    status = Column(Text, default="prospect")  # prospect, active, inactive, former
+    source = Column(Text)  # How they found us
+    notes = Column(Text)
+    last_review_date = Column(DateTime)
+    next_review_date = Column(DateTime)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-# Household schemas
-class HouseholdBase(BaseModel):
-    name: str
-    primary_client_id: Optional[str] = None
-    joint_income: Optional[Decimal] = None
-    joint_net_worth: Optional[Decimal] = None
-
-class HouseholdCreate(HouseholdBase):
-    organization_id: str
-
-class HouseholdUpdate(BaseModel):
-    name: Optional[str] = None
-    primary_client_id: Optional[str] = None
-    joint_income: Optional[Decimal] = None
-    joint_net_worth: Optional[Decimal] = None
-
-class HouseholdResponse(HouseholdBase):
-    id: str
-    organization_id: str
-    created_at: datetime
-    updated_at: Optional[datetime] = None
+class Household(Base):
+    __tablename__ = "households"
     
-    class Config:
-        from_attributes = True
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    organization_id = Column(String, nullable=False)
+    name = Column(Text, nullable=False)
+    primary_client_id = Column(String)
+    joint_income = Column(Numeric(12, 2))
+    joint_net_worth = Column(Numeric(12, 2))
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-# Financial Goal schemas
-class FinancialGoalBase(BaseModel):
-    name: str
-    description: Optional[str] = None
-    target_amount: Decimal
-    current_amount: Decimal = 0
-    target_date: datetime
-    priority: str = "medium"
-    status: str = "active"
-
-class FinancialGoalCreate(FinancialGoalBase):
-    client_id: str
-
-class FinancialGoalUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    target_amount: Optional[Decimal] = None
-    current_amount: Optional[Decimal] = None
-    target_date: Optional[datetime] = None
-    priority: Optional[str] = None
-    status: Optional[str] = None
-
-class FinancialGoalResponse(FinancialGoalBase):
-    id: str
-    client_id: str
-    created_at: datetime
-    updated_at: Optional[datetime] = None
+class HouseholdClient(Base):
+    __tablename__ = "household_clients"
     
-    class Config:
-        from_attributes = True
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    household_id = Column(String, nullable=False)
+    client_id = Column(String, nullable=False)
+    relationship_type = Column(Text, default="member")  # primary, spouse, partner, child, etc.
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+class FinancialGoal(Base):
+    __tablename__ = "financial_goals"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    client_id = Column(String, nullable=False)
+    name = Column(Text, nullable=False)
+    description = Column(Text)
+    target_amount = Column(Numeric(12, 2), nullable=False)
+    current_amount = Column(Numeric(12, 2), default=0)
+    target_date = Column(DateTime, nullable=False)
+    priority = Column(Text, default="medium")  # high, medium, low
+    status = Column(Text, default="active")  # active, achieved, paused, cancelled
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

@@ -1,129 +1,60 @@
-from pydantic import BaseModel
-from typing import Optional, Dict, Any
-from datetime import datetime
-from decimal import Decimal
+from sqlalchemy import Column, String, Text, DateTime, Numeric, Boolean, JSON
+from sqlalchemy.sql import func
+from app.database import Base
+import uuid
 
-# Portfolio schemas
-class PortfolioBase(BaseModel):
-    name: str
-    description: Optional[str] = None
-    account_type: str
-    provider: Optional[str] = None
-    account_number: Optional[str] = None
-    total_value: Decimal = 0
-    currency: str = "GBP"
-    model_portfolio: Optional[str] = None
-    asset_allocation: Dict[str, Any] = {}
-    benchmark_index: Optional[str] = None
-    is_active: bool = True
-
-class PortfolioCreate(PortfolioBase):
-    client_id: str
-
-class PortfolioUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    account_type: Optional[str] = None
-    provider: Optional[str] = None
-    account_number: Optional[str] = None
-    total_value: Optional[Decimal] = None
-    currency: Optional[str] = None
-    model_portfolio: Optional[str] = None
-    asset_allocation: Optional[Dict[str, Any]] = None
-    benchmark_index: Optional[str] = None
-    is_active: Optional[bool] = None
-
-class PortfolioResponse(PortfolioBase):
-    id: str
-    client_id: str
-    created_at: datetime
-    updated_at: Optional[datetime] = None
+class Portfolio(Base):
+    __tablename__ = "portfolios"
     
-    class Config:
-        from_attributes = True
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    client_id = Column(String, nullable=False)
+    name = Column(Text, nullable=False)
+    description = Column(Text)
+    account_type = Column(Text, nullable=False)  # ISA, SIPP, General Investment, etc.
+    provider = Column(Text)  # Platform provider
+    account_number = Column(Text)
+    total_value = Column(Numeric(12, 2), default=0)
+    currency = Column(Text, default="GBP")
+    model_portfolio = Column(Text)  # Reference to model portfolio if using one
+    asset_allocation = Column(JSON, default=dict)  # {equities: 60, bonds: 30, cash: 10}
+    benchmark_index = Column(Text)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-# Holding schemas
-class HoldingBase(BaseModel):
-    symbol: str
-    name: str
-    asset_class: str
-    sector: Optional[str] = None
-    region: Optional[str] = None
-    quantity: Decimal
-    average_cost: Optional[Decimal] = None
-    current_price: Decimal
-    market_value: Decimal
-    unrealized_gain_loss: Optional[Decimal] = None
-    weight: Optional[Decimal] = None
-
-class HoldingCreate(HoldingBase):
-    portfolio_id: str
-
-class HoldingUpdate(BaseModel):
-    symbol: Optional[str] = None
-    name: Optional[str] = None
-    asset_class: Optional[str] = None
-    sector: Optional[str] = None
-    region: Optional[str] = None
-    quantity: Optional[Decimal] = None
-    average_cost: Optional[Decimal] = None
-    current_price: Optional[Decimal] = None
-    market_value: Optional[Decimal] = None
-    unrealized_gain_loss: Optional[Decimal] = None
-    weight: Optional[Decimal] = None
-
-class HoldingResponse(HoldingBase):
-    id: str
-    portfolio_id: str
-    last_updated: Optional[datetime] = None
-    created_at: datetime
+class Holding(Base):
+    __tablename__ = "holdings"
     
-    class Config:
-        from_attributes = True
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    portfolio_id = Column(String, nullable=False)
+    symbol = Column(Text, nullable=False)  # Ticker or ISIN
+    name = Column(Text, nullable=False)
+    asset_class = Column(Text, nullable=False)  # equity, bond, cash, property, commodity, alternative
+    sector = Column(Text)
+    region = Column(Text)
+    quantity = Column(Numeric(15, 6), nullable=False)
+    average_cost = Column(Numeric(10, 4))
+    current_price = Column(Numeric(10, 4), nullable=False)
+    market_value = Column(Numeric(12, 2), nullable=False)
+    unrealized_gain_loss = Column(Numeric(12, 2))
+    weight = Column(Numeric(5, 2))  # Percentage of portfolio
+    last_updated = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-# Scenario schemas
-class ScenarioBase(BaseModel):
-    name: str
-    description: Optional[str] = None
-    type: str
-    current_age: int
-    target_age: int
-    current_savings: Decimal = 0
-    monthly_contribution: Decimal
-    expected_return: Decimal
-    inflation_rate: Decimal = Decimal("2.5")
-    target_amount: Optional[Decimal] = None
-    projected_value: Optional[Decimal] = None
-    projected_income: Optional[Decimal] = None
-    assumptions: Dict[str, Any] = {}
-    results: Dict[str, Any] = {}
-    is_active: bool = True
-
-class ScenarioCreate(ScenarioBase):
-    client_id: str
-
-class ScenarioUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    type: Optional[str] = None
-    current_age: Optional[int] = None
-    target_age: Optional[int] = None
-    current_savings: Optional[Decimal] = None
-    monthly_contribution: Optional[Decimal] = None
-    expected_return: Optional[Decimal] = None
-    inflation_rate: Optional[Decimal] = None
-    target_amount: Optional[Decimal] = None
-    projected_value: Optional[Decimal] = None
-    projected_income: Optional[Decimal] = None
-    assumptions: Optional[Dict[str, Any]] = None
-    results: Optional[Dict[str, Any]] = None
-    is_active: Optional[bool] = None
-
-class ScenarioResponse(ScenarioBase):
-    id: str
-    client_id: str
-    created_at: datetime
-    updated_at: Optional[datetime] = None
+class PortfolioTransaction(Base):
+    __tablename__ = "portfolio_transactions"
     
-    class Config:
-        from_attributes = True
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    portfolio_id = Column(String, nullable=False)
+    type = Column(Text, nullable=False)  # buy, sell, dividend, interest, fee, deposit, withdrawal
+    symbol = Column(Text)  # For trades
+    quantity = Column(Numeric(15, 6))
+    price = Column(Numeric(10, 4))
+    amount = Column(Numeric(12, 2), nullable=False)
+    fees = Column(Numeric(10, 2), default=0)
+    net_amount = Column(Numeric(12, 2), nullable=False)
+    trade_date = Column(DateTime, nullable=False)
+    settlement_date = Column(DateTime)
+    description = Column(Text)
+    reference = Column(Text)  # External reference
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

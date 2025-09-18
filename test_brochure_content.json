@@ -1,0 +1,34 @@
+{
+  "panels": [
+    {
+      "type": "cover",
+      "title": "TechSolutions Inc",
+      "subtitle": "Innovative AI Solutions for a Smarter Future"
+    },
+    {
+      "type": "about",
+      "title": "About TechSolutions Inc",
+      "content": "Founded 8 years ago in the heart of London, TechSolutions Inc has been at the forefront of AI innovation. Our team of experts is dedicated to developing cutting-edge software solutions that empower businesses to harness the power of artificial intelligence."
+    },
+    {
+      "type": "services",
+      "title": "Our Services",
+      "content": "At TechSolutions Inc, we specialize in a range of AI-driven services including machine learning model development, natural language processing, and data analytics. Our solutions are tailored to meet the unique needs of each client, ensuring maximum efficiency and effectiveness."
+    },
+    {
+      "type": "credentials",
+      "title": "Why Choose Us",
+      "content": "With a stellar 4.9-star rating, TechSolutions Inc is recognized for its commitment to excellence and customer satisfaction. Our experienced team and innovative approach have earned us a reputation as leaders in the AI industry."
+    },
+    {
+      "type": "contact",
+      "title": "Get In Touch",
+      "content": "Contact us today to learn how TechSolutions Inc can transform your business with AI. Visit us in London or reach out via email at contact@techsolutionsinc.com or call us at +44 20 7946 0958."
+    }
+  ],
+  "templateInfo": {
+    "templateId": "8a3aff97-3a6f-4ed0-b53b-36f55574a392",
+    "templateName": "Marketing Brochure",
+    "templateCategory": "brochure"
+  }
+}
